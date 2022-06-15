@@ -12,6 +12,7 @@
 static struct option long_options[] = {
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
+	{"check", no_argument, NULL, 'c'},
 	{"pin", required_argument, NULL, 'p'},
 	{"input", no_argument, NULL, 'i'},
 	{"output", required_argument, NULL, 'o'},
@@ -19,15 +20,17 @@ static struct option long_options[] = {
 	{0, 0, NULL, 0},
 };
 
-static const char option_string[] = {"hvp:io:"};
+static const char option_string[] = {"hvcp:io:"};
 
 static struct {
 	char *device;
+	bool check;
 	int pin;
 	int input;
 	int output;
 } options = {
 	.device = NULL,
+	.check = false,
 	.pin = 0,
 	.input = 0,
 	.output = -1,
@@ -43,6 +46,8 @@ print_help(const char *progname)
 	LOGI("      Print this help message and exit.");
 	LOGI("  -v, --version");
 	LOGI("      Print version information and exit.");
+	LOGI("  -c, --check");
+	LOGI("      Check if the device is connected and exit.");
 	LOGI("  -p, --pin <PIN>");
 	LOGI("      Set the pin to use.");
 	LOGI("  -i, --input");
@@ -70,6 +75,9 @@ main(int argc, char **argv)
 		c = getopt_long(argc, argv, option_string, long_options, &long_index);
 		if (c == EOF) break;
 		switch (c) {
+			case 'c':
+				options.check = true;
+				break;
 			case 'p':
 				options.pin = atoi(optarg);
 				break;
@@ -104,20 +112,6 @@ main(int argc, char **argv)
 
 	options.device = argv[optind];
 
-	if (options.pin == -1) {
-		LOGE("Missing pin.");
-		ret = -1;
-		goto exit;
-	} else if (options.input == 0 && options.output == -1) {
-		LOGE("Missing action. (--input or --output)");
-		ret = -1;
-		goto exit;
-	} else if (options.input == 1 && options.output != -1) {
-		LOGE("Cannot set and read at the same time.");
-		ret = -1;
-		goto exit;
-	}
-
 	if (!cp2102_init()) {
 		LOGE("Failed to initialize.");
 		ret = -1;
@@ -125,10 +119,33 @@ main(int argc, char **argv)
 	}
 
 	cp2102_dev_t *dev = cp2102_open(options.device);
+	if (options.check) {
+		if (dev == NULL) {
+			ret = -1;
+			goto err_open;
+		} else {
+			ret = 0;
+			goto err_io;
+		}
+	}
 	if (dev == NULL) {
 		LOGE("Failed to open device.");
 		ret = -1;
 		goto err_open;
+	}
+
+	if (options.pin == -1) {
+		LOGE("Missing pin.");
+		ret = -1;
+		goto err_io;
+	} else if (options.input == 0 && options.output == -1) {
+		LOGE("Missing action. (--input or --output)");
+		ret = -1;
+		goto err_io;
+	} else if (options.input == 1 && options.output != -1) {
+		LOGE("Cannot set and read at the same time.");
+		ret = -1;
+		goto err_io;
 	}
 
 	if (options.input != 0) {
