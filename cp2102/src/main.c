@@ -9,31 +9,41 @@
 #define LOG_TAG "main"
 #include "log.h"
 
+#define CP2102_PORTS 7
+
 static struct option long_options[] = {
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
 	{"check", no_argument, NULL, 'c'},
-	{"pin", required_argument, NULL, 'p'},
-	{"input", no_argument, NULL, 'i'},
-	{"output", required_argument, NULL, 'o'},
 	{"debug", no_argument, NULL, 0},
 	{0, 0, NULL, 0},
 };
 
-static const char option_string[] = {"hvcp:io:"};
+static const char option_string[] = {
+	"hvc"
+	"0::"
+	"1::"
+	"2::"
+	"3::"
+	"4::"
+	"5::"
+	"6::",
+};
 
 static struct {
 	char *device;
 	bool check;
-	int pin;
-	int input;
-	int output;
+	uint8_t write_mask;
+	uint8_t write_bits;
+	uint8_t read_mask;
+	uint8_t output_offsets[CP2102_PORTS];
 } options = {
 	.device = NULL,
 	.check = false,
-	.pin = 0,
-	.input = 0,
-	.output = -1,
+	.write_mask = 0,
+	.write_bits = 0,
+	.read_mask = 0,
+	.output_offsets = {0},
 };
 
 static void
@@ -48,12 +58,8 @@ print_help(const char *progname)
 	LOGI("      Print version information and exit.");
 	LOGI("  -c, --check");
 	LOGI("      Check if the device is connected and exit.");
-	LOGI("  -p, --pin <PIN>");
-	LOGI("      Set the pin to use.");
-	LOGI("  -i, --input");
-	LOGI("      Read the value from the pin.");
-	LOGI("  -o, --output <VALUE>");
-	LOGI("      Set the value of the pin.");
+	LOGI("  -0[X] .. -6[X]");
+	LOGI("      Read GPIO[0..6] state, optionally set them to X.");
 }
 
 static void
@@ -68,24 +74,42 @@ main(int argc, char **argv)
 	set_log_level(LOGLEVEL_INFO);
 
 	int ret = 0;
+	int output_idx = 0;
 
 	int long_index = -1;
 	int c;
 	while (1) {
 		c = getopt_long(argc, argv, option_string, long_options, &long_index);
 		if (c == EOF) break;
+
+		if (c >= '0' && c <= '6') {
+			uint8_t gpio = c - '0';
+			uint8_t state;
+
+			if (options.read_mask & (1 << gpio)) {
+				LOGE("Redundant read of GPIO%d", gpio);
+				ret = -1;
+				goto exit;
+			}
+
+			options.read_mask |= 1 << gpio;
+			options.output_offsets[gpio] = output_idx++;
+
+			if (optarg != NULL) {
+				state = atoi(optarg) ? 1 : 0;
+				LOGD("set gpio %d to %d", gpio, state);
+				options.write_mask |= 1 << gpio;
+				options.write_bits |= state << gpio;
+			} else {
+				LOGD("get gpio %d", gpio);
+			}
+
+			continue;
+		}
+
 		switch (c) {
 			case 'c':
 				options.check = true;
-				break;
-			case 'p':
-				options.pin = atoi(optarg);
-				break;
-			case 'i':
-				options.input = 1;
-				break;
-			case 'o':
-				options.output = atoi(optarg);
 				break;
 			case 'v':
 				print_version();
@@ -105,7 +129,7 @@ main(int argc, char **argv)
 	}
 
 	if (optind >= argc) {
-		LOGE("ERROR: Missing device.");
+		LOGE("Missing device.");
 		ret = -1;
 		goto exit;
 	}
@@ -134,34 +158,37 @@ main(int argc, char **argv)
 		goto err_open;
 	}
 
-	if (options.pin == -1) {
-		LOGE("Missing pin.");
-		ret = -1;
-		goto err_io;
-	} else if (options.input == 0 && options.output == -1) {
-		LOGE("Missing action. (--input or --output)");
-		ret = -1;
-		goto err_io;
-	} else if (options.input == 1 && options.output != -1) {
-		LOGE("Cannot set and read at the same time.");
-		ret = -1;
-		goto err_io;
+	LOGD("write_mask: 0x%02x", options.write_mask);
+	LOGD("write_bits: 0x%02x", options.write_bits);
+
+	if (options.write_mask) {
+		if (!cp2102_set_value(dev, options.write_bits, options.write_mask)) {
+			LOGE("Failed to write to device.");
+			ret = -1;
+			goto err_io;
+		}
 	}
 
-	if (options.input != 0) {
-		bool value;
-		if (!cp2102_get_value(dev, options.pin, &value)) {
-			LOGE("Failed to read value.");
+	LOGD("read_mask: 0x%02x", options.read_mask);
+
+	if (options.read_mask) {
+		uint8_t state;
+		char output[CP2102_PORTS + 1] = {0};
+		if (!cp2102_get_value(dev, &state)) {
+			LOGE("Failed to read from device.");
 			ret = -1;
 			goto err_io;
 		}
-		printf("%d\n", value);
-	} else if (options.output != -1) {
-		if (!cp2102_set_value(dev, options.pin, options.output)) {
-			LOGE("Failed to set value.");
-			ret = -1;
-			goto err_io;
+		for (int i = 0; i < CP2102_PORTS; i++) {
+			if (options.read_mask & (1 << i)) {
+				if (state & (1 << i)) {
+					output[options.output_offsets[i]] = '1';
+				} else {
+					output[options.output_offsets[i]] = '0';
+				}
+			}
 		}
+		printf("%s\n", output);
 	}
 
 err_io:

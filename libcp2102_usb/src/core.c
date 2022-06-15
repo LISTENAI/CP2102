@@ -69,31 +69,30 @@ cp2102_close(cp2102_dev_t **dev)
 }
 
 bool
-cp2102_set_value(cp2102_dev_t *dev, uint32_t pin, bool value)
+cp2102_set_value(cp2102_dev_t *dev, uint8_t state, uint8_t mask)
 {
-	uint8_t state = value ? (1 << pin) : 0;
-	uint8_t mask = 1 << pin;
-
 	uint16_t bits = (state << 8) | mask;
 
 	int ret = libusb_control_transfer(dev->handle, REQTYPE_HOST_TO_DEVICE, CP210X_VENDOR_SPECIFIC,
 		CP210X_WRITE_LATCH, bits, NULL, 0, 0);
-	LOGD("set gpio %d to %d, bits: 0x%04x, ret: %d", pin, value, bits, ret);
+	LOGD("set gpio: state: 0x%02x, mask: 0x%02x, ret: %d", state, mask, ret);
 
 	return ret == 0;
 }
 
 bool
-cp2102_get_value(cp2102_dev_t *dev, uint32_t pin, bool *value)
+cp2102_get_value(cp2102_dev_t *dev, uint8_t *state)
 {
 	uint8_t bits = 0;
 
 	int ret = libusb_control_transfer(dev->handle, REQTYPE_DEVICE_TO_HOST, CP210X_VENDOR_SPECIFIC,
 		CP210X_READ_LATCH, 0, &bits, 1, 0);
-	LOGD("get gpio %d, ret: %d, bits: 0x%02x", pin, ret, bits);
+	LOGD("get gpio: ret: %d, state: 0x%02x", ret, bits);
 
 	if (ret == 1) {
-		*value = bits & (1 << pin);
+		*state = bits;
+		return true;
+	} else {
+		return false;
 	}
-	return ret == 1;
 }
