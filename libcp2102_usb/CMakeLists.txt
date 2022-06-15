@@ -7,6 +7,8 @@ set(SRCS
 
 if(APPLE)
     list(APPEND SRCS "src/tty_utils_darwin.c")
+elseif(UNIX)
+    list(APPEND SRCS "src/tty_utils_linux.c")
 else()
     list(APPEND SRCS "src/tty_utils_dummy.c")
 endif()
