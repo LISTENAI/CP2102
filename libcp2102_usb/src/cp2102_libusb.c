@@ -20,6 +20,7 @@
 #define CP210X_VENDOR_SPECIFIC 0xff
 
 #define CP210X_READ_LATCH 0x00c2
+#define CP210X_GET_PARTNUM 0x370b
 #define CP210X_WRITE_LATCH 0x37e1
 
 #define SERIAL_NUMBER_LEN 256
@@ -108,6 +109,14 @@ cp2102_open(const char *dev_name)
 	}
 
 	LOGD("port opened");
+
+	uint8_t part_number = 0;
+	if (libusb_control_transfer(handle, REQTYPE_DEVICE_TO_HOST, CP210X_VENDOR_SPECIFIC,
+			CP210X_GET_PARTNUM, 0, &part_number, sizeof(part_number), 0) < 0) {
+		libusb_close(handle);
+		return NULL;
+	}
+	LOGD("part number: 0x%02x", part_number);
 
 	cp2102_dev_t *dev = malloc(sizeof(cp2102_dev_t));
 	dev->handle = handle;
