@@ -1,9 +1,6 @@
 project(cp2102_usb)
 
-set(SRCS
-    "src/core.c"
-    "src/usb_utils.c"
-)
+set(SRCS "src/cp2102_libusb.c")
 
 if(APPLE)
     list(APPEND SRCS "src/tty_utils_darwin.c")
