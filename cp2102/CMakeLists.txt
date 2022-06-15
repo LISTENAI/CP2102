@@ -4,6 +4,9 @@ set(SRCS "src/main.c")
 
 add_executable(${PROJECT_NAME} ${SRCS})
 
+target_link_libraries(${PROJECT_NAME} log)
+target_link_libraries(${PROJECT_NAME} cp2102_usb)
+
 execute_process(COMMAND git describe --tags --abbrev=0 OUTPUT_VARIABLE GIT_TAG OUTPUT_STRIP_TRAILING_WHITESPACE)
 execute_process(COMMAND git rev-parse --short HEAD OUTPUT_VARIABLE GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
 execute_process(COMMAND git rev-list --count HEAD OUTPUT_VARIABLE GIT_INCREMENT OUTPUT_STRIP_TRAILING_WHITESPACE)
