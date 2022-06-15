@@ -49,6 +49,61 @@ jobs:
           tag: ${{ github.ref }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
 
+  build-win32:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          - { name: win32-x64, os: windows-latest }
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          release: false
+          install: >-
+            git
+            zip
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+
+      - name: Build
+        shell: msys2 {0}
+        run: |
+          cmake -G Ninja -B build
+          cmake --build build --config Release
+          ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: cp2102-${{ matrix.name }}
+          path: |
+            build/cp2102/cp2102.exe
+            build/cp2102/CP210xRuntime.dll
+          if-no-files-found: error
+
+      - name: Pack release assets
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: msys2 {0}
+        run: zip -9 -j cp2102-${{ matrix.name }}.zip build/cp2102/cp2102.exe build/cp2102/CP210xRuntime.dll
+
+      - name: Release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file: cp2102-${{ matrix.name }}.zip
+          tag: ${{ github.ref }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+
   build-docker:
     runs-on: ubuntu-latest
 

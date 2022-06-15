@@ -6,4 +6,6 @@ add_subdirectory(cp2102)
 add_subdirectory(libcp2102_usb)
 add_subdirectory(liblog)
 
-add_subdirectory(libusb)
+if(NOT WIN32)
+    add_subdirectory(libusb)
+endif()

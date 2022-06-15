@@ -18,4 +18,12 @@ target_compile_options(
     -DGIT_INCREMENT=${GIT_INCREMENT}
 )
 
+if(WIN32)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        $<TARGET_FILE_DIR:cp2102_usb>/CP210xRuntime.dll
+        ${PROJECT_BINARY_DIR}
+    )
+endif()
+
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
