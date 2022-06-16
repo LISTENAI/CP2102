@@ -148,6 +148,7 @@ main(int argc, char **argv)
 			ret = -1;
 			goto err_open;
 		} else {
+			LOGI("%s", cp2102_get_serial_number(dev));
 			ret = 0;
 			goto err_io;
 		}

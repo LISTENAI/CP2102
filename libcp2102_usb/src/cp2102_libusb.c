@@ -121,6 +121,9 @@ cp2102_open(const char *dev_name)
 	cp2102_dev_t *dev = malloc(sizeof(cp2102_dev_t));
 	dev->handle = handle;
 
+	dev->serial_number = malloc(strlen(serial) + 1);
+	strcpy(dev->serial_number, serial);
+
 	return dev;
 }
 
@@ -133,8 +136,17 @@ cp2102_close(cp2102_dev_t **dev)
 	if ((*dev)->handle != NULL) {
 		libusb_close((*dev)->handle);
 	}
+	if ((*dev)->serial_number != NULL) {
+		free((*dev)->serial_number);
+	}
 	free(*dev);
 	*dev = NULL;
+}
+
+const char *
+cp2102_get_serial_number(cp2102_dev_t *dev)
+{
+	return (const char *)dev->serial_number;
 }
 
 bool
